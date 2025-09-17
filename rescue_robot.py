@@ -4,6 +4,7 @@
 
 import os
 import time
+import platform
 import csv
 
 ###########################################
@@ -42,16 +43,21 @@ class Labirinto:
         self.mapa[x][y] = val
 
     def print(self, robo_pos, humano_presente=True):
-        os.system('clear')
-        for i,row in enumerate(self.mapa):
-            linha=""
-            for j,c in enumerate(row):
-                if (i,j)==robo_pos:
-                    linha+="R"
-                elif c=='@' and humano_presente:
-                    linha+='@'
+        sistema = platform.system()
+        if sistema == 'Windows':
+            os.system('cls')
+        else:
+            os.system('clear')
+
+        for i, row in enumerate(self.mapa):
+            linha = ""
+            for j, c in enumerate(row):
+                if (i, j) == robo_pos:
+                    linha += "R"
+                elif c == '@' and humano_presente:
+                    linha += '@'
                 else:
-                    linha+=c
+                    linha += c
             print(linha)
         time.sleep(SIM_DELAY)
 
@@ -156,13 +162,15 @@ class Simulacao:
         self.robo.retornar()
         self.robo.salvar_log()
 
+###########################################
+## EXECUÇÃO PRINCIPAL
+###########################################
+
 def carregar_mapa(caminho_arquivo):
     with open(caminho_arquivo, "r") as f:
         return f.read()
 
-###########################################
-## EXECUÇÃO PRINCIPAL
-###########################################
+
 if __name__ == "__main__":
     arquivos = ["lab1.txt","lab2.txt","lab3.txt"]  # coloque seus labirintos aqui
     for arq in arquivos:
