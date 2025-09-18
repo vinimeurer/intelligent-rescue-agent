@@ -55,23 +55,29 @@ class Robo:
         self.lab = labirinto
         self.pos = labirinto.entrada
         self.humano_coletado = False
+        self.orientacao = 0  # 0=N, 1=L, 2=S, 3=O
         self.caminho_ate_humano = []
         self.log = []
         self.log_file = log_file
         self.log_comando("LIGAR")
 
     def sensores(self):
-        resultados=[]
-        for dx,dy in DIRS:
-            nx,ny = self.pos[0]+dx, self.pos[1]+dy
-            cel = self.lab.get_celula((nx,ny))
-            if cel=='X':
-                resultados.append("PAREDE")
-            elif cel=='@':
-                resultados.append("HUMANO")
+        # calcula as direções relativas
+        frente_dir = DIRS[self.orientacao]
+        esquerda_dir = DIRS[(self.orientacao - 1) % 4]
+        direita_dir = DIRS[(self.orientacao + 1) % 4]
+
+        sensores = []
+        for dx, dy in [frente_dir, esquerda_dir, direita_dir]:
+            nx, ny = self.pos[0] + dx, self.pos[1] + dy
+            cel = self.lab.get_celula((nx, ny))
+            if cel == 'X':
+                sensores.append("PAREDE")
+            elif cel == '@':
+                sensores.append("HUMANO")
             else:
-                resultados.append("VAZIO")
-        return resultados
+                sensores.append("VAZIO")
+        return sensores
 
     def log_comando(self, cmd):
         sensores = self.sensores()
@@ -84,12 +90,11 @@ class Robo:
         orientacao = 0  # começa virado para "Norte" (DIRS[0])
 
         def mover_para(nova_pos, nova_orientacao):
-            nonlocal orientacao
             # calcular diferença de orientação
-            giros = (nova_orientacao - orientacao) % 4
+            giros = (nova_orientacao - self.orientacao) % 4
             for _ in range(giros):
                 self.log_comando("G")  # cada giro registrado
-            orientacao = nova_orientacao
+            self.orientacao = nova_orientacao
 
             # andar
             self.pos = nova_pos
@@ -146,7 +151,7 @@ class Robo:
     def salvar_log(self):
         with open(self.log_file,"w",newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["Comando","Sensor N","Sensor L","Sensor S","Sensor O","Carga"])
+            writer.writerow(["Comando","Frente","Esquerda","Direita","Carga"])
             writer.writerows(self.log)
 
 
