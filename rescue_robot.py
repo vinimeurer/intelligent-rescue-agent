@@ -1,23 +1,11 @@
-##########################################
-# IMPORTAÇÕES
-##########################################
-
 import os
 import time
 import platform
 import csv
 
-###########################################
-# CONSTANTES GLOBAIS
-###########################################
-
 DIRS = [(-1,0),(0,1),(1,0),(0,-1)]  # N, L, S, O
-SIM_DELAY = 0.1  # tempo entre passos (ajuste se quiser mais lento/rápido)
+SIM_DELAY = 0.1  # tempo entre passos
 
-
-##########################################
-# CLASSE QUE REPRESENTA O LABIRINTO
-##########################################
 class Labirinto:
     def __init__(self, mapa_str):
         self.mapa = [list(l) for l in mapa_str.strip().splitlines()]
@@ -62,11 +50,6 @@ class Labirinto:
         time.sleep(SIM_DELAY)
 
 
-
-
-##########################################
-# CLASSE QUE REPRESENTA O ROBÔ
-##########################################
 class Robo:
     def __init__(self, labirinto: Labirinto, log_file):
         self.lab = labirinto
@@ -79,9 +62,7 @@ class Robo:
 
     def sensores(self):
         resultados=[]
-        for d in [-1,0,1]:  # esquerda, frente, direita
-            nd = (0+d)%4  # não usamos direção real aqui
-            dx,dy = DIRS[d+1] if d!=-1 else DIRS[-1]
+        for dx,dy in DIRS:
             nx,ny = self.pos[0]+dx, self.pos[1]+dy
             cel = self.lab.get_celula((nx,ny))
             if cel=='X':
@@ -97,27 +78,50 @@ class Robo:
         carga = "COM HUMANO" if self.humano_coletado else "SEM CARGA"
         self.log.append([cmd]+sensores+[carga])
 
-    def explorar_ate_humano(self):
-        stack = [(self.pos,[self.pos])]
-        visited = set([self.pos])
-        while stack:
-            current, path = stack.pop()
-            if self.lab.get_celula(current)=='@':
-                self.caminho_ate_humano = path
-                return
-            for dx,dy in DIRS:
-                nx,ny = current[0]+dx, current[1]+dy
-                if 0<=nx<self.lab.linhas and 0<=ny<self.lab.colunas:
-                    if self.lab.get_celula((nx,ny)) in ['.','@'] and (nx,ny) not in visited:
-                        visited.add((nx,ny))
-                        stack.append(((nx,ny), path + [(nx,ny)]))
+    def explorar(self):
+        visitados = set()
+        caminho = []
+        orientacao = 0  # começa virado para "Norte" (DIRS[0])
 
-    def andar_ate_humano(self):
-        for pos in self.caminho_ate_humano[1:]:
-            self.pos = pos
-            self.lab.print(self.pos, humano_presente=True)
+        def mover_para(nova_pos, nova_orientacao):
+            nonlocal orientacao
+            # calcular diferença de orientação
+            giros = (nova_orientacao - orientacao) % 4
+            for _ in range(giros):
+                self.log_comando("G")  # cada giro registrado
+            orientacao = nova_orientacao
+
+            # andar
+            self.pos = nova_pos
+            self.lab.print(self.pos, humano_presente=not self.humano_coletado)
             self.log_comando("A")
-        self.pegar_humano()
+
+        def dfs(pos):
+            if pos in visitados:
+                return False
+            visitados.add(pos)
+
+            if self.lab.get_celula(pos) == '@':
+                self.pegar_humano()
+                return True
+
+            for nd, (dx, dy) in enumerate(DIRS):
+                nx, ny = pos[0] + dx, pos[1] + dy
+                if self.lab.get_celula((nx, ny)) in ['.', '@'] and (nx, ny) not in visitados:
+                    caminho.append((nx, ny))
+                    mover_para((nx, ny), nd)
+                    if dfs((nx, ny)):
+                        return True
+                    # --- BACKTRACK REAL ---
+                    mover_para(pos, (nd + 2) % 4)  # virar para trás e andar
+                    caminho.pop()
+
+            return False
+
+        dfs(self.pos)
+        self.caminho_ate_humano = [self.lab.entrada] + caminho
+
+
 
     def pegar_humano(self):
         if self.lab.get_celula(self.pos)=='@':
@@ -142,14 +146,10 @@ class Robo:
     def salvar_log(self):
         with open(self.log_file,"w",newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["Comando","Sensor Esq","Sensor Frente","Sensor Dir","Carga"])
+            writer.writerow(["Comando","Sensor N","Sensor L","Sensor S","Sensor O","Carga"])
             writer.writerows(self.log)
 
 
-
-##########################################
-# CLASSE DA SIMULAÇÃO
-##########################################
 class Simulacao:
     def __init__(self, mapa_str, nome_arquivo):
         self.lab = Labirinto(mapa_str)
@@ -157,22 +157,18 @@ class Simulacao:
         self.robo = Robo(self.lab, log_file)
 
     def executar(self):
-        self.robo.explorar_ate_humano()
-        self.robo.andar_ate_humano()
+        self.robo.explorar()
         self.robo.retornar()
         self.robo.salvar_log()
 
-###########################################
-## EXECUÇÃO PRINCIPAL
-###########################################
 
+# -------- MAIN --------
 def carregar_mapa(caminho_arquivo):
     with open(caminho_arquivo, "r") as f:
         return f.read()
 
-
 if __name__ == "__main__":
-    arquivos = ["lab1.txt","lab2.txt","lab3.txt"]  # coloque seus labirintos aqui
+    arquivos = ["lab4.txt"]  # coloque seus labirintos aqui
     for arq in arquivos:
         if os.path.exists(arq):
             mapa = carregar_mapa(arq)
