@@ -90,13 +90,21 @@ class Robo:
         orientacao = 0  # começa virado para "Norte" (DIRS[0])
 
         def mover_para(nova_pos, nova_orientacao):
-            # calcular diferença de orientação
+            # --- Alarme 1: colisão com parede ---
+            if self.lab.get_celula(nova_pos) == 'X':
+                raise Exception("⚠️ ALARME: Tentativa de colisão com parede!")
+
+            # --- Alarme 2: atropelamento de humano ---
+            if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
+                raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
+
+            # Giro de orientação
             giros = (nova_orientacao - self.orientacao) % 4
             for _ in range(giros):
-                self.log_comando("G")  # cada giro registrado
+                self.log_comando("G")
             self.orientacao = nova_orientacao
 
-            # andar
+            # Movimento
             self.pos = nova_pos
             self.lab.print(self.pos, humano_presente=not self.humano_coletado)
             self.log_comando("A")
@@ -129,11 +137,22 @@ class Robo:
 
 
     def pegar_humano(self):
-        if self.lab.get_celula(self.pos)=='@':
-            self.humano_coletado = True
-            self.lab.set_celula(self.pos,'.')
-            self.log_comando("P")
-            self.lab.print(self.pos, humano_presente=False)
+        # --- Alarme 5: tentativa de coleta sem humano ---
+        if self.lab.get_celula(self.pos) != '@':
+            raise Exception("⚠️ ALARME: Tentativa de coleta sem humano!")
+        self.humano_coletado = True
+        self.lab.set_celula(self.pos, '.')
+        self.log_comando("P")
+        self.lab.print(self.pos, humano_presente=False)
+
+        # --- Alarme 3: beco sem saída após coleta ---
+        livres = 0
+        for dx, dy in DIRS:
+            cel = self.lab.get_celula((self.pos[0]+dx, self.pos[1]+dy))
+            if cel in ['.', 'E']:
+                livres += 1
+        if livres == 0:
+            raise Exception("⚠️ ALARME: Beco sem saída após coleta de humano!")
 
     def retornar(self):
         caminho_volta = list(reversed(self.caminho_ate_humano[:-1]))
@@ -144,7 +163,10 @@ class Robo:
         self.ejetar()
 
     def ejetar(self):
-        if self.pos == self.lab.entrada and self.humano_coletado:
+        # --- Alarme 4: ejeção sem humano ---
+        if not self.humano_coletado:
+            raise Exception("⚠️ ALARME: Tentativa de ejeção sem humano!")
+        if self.pos == self.lab.entrada:
             self.humano_coletado = False
             self.log_comando("E")
 
