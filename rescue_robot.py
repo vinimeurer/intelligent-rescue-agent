@@ -62,11 +62,9 @@ class Robo:
         self.log_comando("LIGAR")
 
     def sensores(self):
-        # calcula as direções relativas
         frente_dir = DIRS[self.orientacao]
         esquerda_dir = DIRS[(self.orientacao - 1) % 4]
         direita_dir = DIRS[(self.orientacao + 1) % 4]
-
         sensores = []
         for dx, dy in [frente_dir, esquerda_dir, direita_dir]:
             nx, ny = self.pos[0] + dx, self.pos[1] + dy
@@ -84,30 +82,30 @@ class Robo:
         carga = "COM HUMANO" if self.humano_coletado else "SEM CARGA"
         self.log.append([cmd]+sensores+[carga])
 
+    # --- NOVO: método reutilizável ---
+    def mover_para(self, nova_pos, nova_orientacao):
+        # --- Alarme 1: colisão com parede ---
+        if self.lab.get_celula(nova_pos) == 'X':
+            raise Exception("⚠️ ALARME: Tentativa de colisão com parede!")
+
+        # --- Alarme 2: atropelamento de humano ---
+        if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
+            raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
+
+        # Giro de orientação
+        giros = (nova_orientacao - self.orientacao) % 4
+        for _ in range(giros):
+            self.log_comando("G")
+        self.orientacao = nova_orientacao
+
+        # Movimento
+        self.pos = nova_pos
+        self.lab.print(self.pos, humano_presente=not self.humano_coletado)
+        self.log_comando("A")
+
     def explorar(self):
         visitados = set()
         caminho = []
-        orientacao = 0  # começa virado para "Norte" (DIRS[0])
-
-        def mover_para(nova_pos, nova_orientacao):
-            # --- Alarme 1: colisão com parede ---
-            if self.lab.get_celula(nova_pos) == 'X':
-                raise Exception("⚠️ ALARME: Tentativa de colisão com parede!")
-
-            # --- Alarme 2: atropelamento de humano ---
-            if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
-                raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
-
-            # Giro de orientação
-            giros = (nova_orientacao - self.orientacao) % 4
-            for _ in range(giros):
-                self.log_comando("G")
-            self.orientacao = nova_orientacao
-
-            # Movimento
-            self.pos = nova_pos
-            self.lab.print(self.pos, humano_presente=not self.humano_coletado)
-            self.log_comando("A")
 
         def dfs(pos):
             if pos in visitados:
@@ -122,11 +120,11 @@ class Robo:
                 nx, ny = pos[0] + dx, pos[1] + dy
                 if self.lab.get_celula((nx, ny)) in ['.', '@'] and (nx, ny) not in visitados:
                     caminho.append((nx, ny))
-                    mover_para((nx, ny), nd)
+                    self.mover_para((nx, ny), nd)
                     if dfs((nx, ny)):
                         return True
                     # --- BACKTRACK REAL ---
-                    mover_para(pos, (nd + 2) % 4)  # virar para trás e andar
+                    self.mover_para(pos, (nd + 2) % 4)
                     caminho.pop()
 
             return False
@@ -134,10 +132,7 @@ class Robo:
         dfs(self.pos)
         self.caminho_ate_humano = [self.lab.entrada] + caminho
 
-
-
     def pegar_humano(self):
-        # --- Alarme 5: tentativa de coleta sem humano ---
         if self.lab.get_celula(self.pos) != '@':
             raise Exception("⚠️ ALARME: Tentativa de coleta sem humano!")
         self.humano_coletado = True
@@ -145,7 +140,6 @@ class Robo:
         self.log_comando("P")
         self.lab.print(self.pos, humano_presente=False)
 
-        # --- Alarme 3: beco sem saída após coleta ---
         livres = 0
         for dx, dy in DIRS:
             cel = self.lab.get_celula((self.pos[0]+dx, self.pos[1]+dy))
@@ -156,14 +150,14 @@ class Robo:
 
     def retornar(self):
         caminho_volta = list(reversed(self.caminho_ate_humano[:-1]))
-        for pos in caminho_volta:
-            self.pos = pos
-            self.lab.print(self.pos, humano_presente=False)
-            self.log_comando("A")
+        for prox in caminho_volta:
+            dx = prox[0] - self.pos[0]
+            dy = prox[1] - self.pos[1]
+            nd = DIRS.index((dx, dy))
+            self.mover_para(prox, nd)
         self.ejetar()
 
     def ejetar(self):
-        # --- Alarme 4: ejeção sem humano ---
         if not self.humano_coletado:
             raise Exception("⚠️ ALARME: Tentativa de ejeção sem humano!")
         if self.pos == self.lab.entrada:
