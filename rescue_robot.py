@@ -61,21 +61,42 @@ class Robo:
         self.log_file = log_file
         self.log_comando("LIGAR")
 
+    # def sensores(self):
+    #     frente_dir = DIRS[self.orientacao]
+    #     esquerda_dir = DIRS[(self.orientacao - 1) % 4]
+    #     direita_dir = DIRS[(self.orientacao + 1) % 4]
+    #     sensores = []
+    #     for dx, dy in [frente_dir, esquerda_dir, direita_dir]:
+    #         nx, ny = self.pos[0] + dx, self.pos[1] + dy
+    #         cel = self.lab.get_celula((nx, ny))
+    #         if cel == 'X':
+    #             sensores.append("PAREDE")
+    #         elif cel == '@':
+    #             sensores.append("HUMANO")
+    #         else:
+    #             sensores.append("VAZIO")
+    #     return sensores
+
     def sensores(self):
         frente_dir = DIRS[self.orientacao]
         esquerda_dir = DIRS[(self.orientacao - 1) % 4]
         direita_dir = DIRS[(self.orientacao + 1) % 4]
+
         sensores = []
-        for dx, dy in [frente_dir, esquerda_dir, direita_dir]:
+        for i, (dx, dy) in enumerate([frente_dir, esquerda_dir, direita_dir]):
             nx, ny = self.pos[0] + dx, self.pos[1] + dy
             cel = self.lab.get_celula((nx, ny))
+
             if cel == 'X':
                 sensores.append("PAREDE")
-            elif cel == '@':
+            elif cel == '@' and i == 0:  
+                # só mostrar HUMANO se estiver exatamente à frente
                 sensores.append("HUMANO")
             else:
                 sensores.append("VAZIO")
         return sensores
+
+
 
     def log_comando(self, cmd):
         sensores = self.sensores()
@@ -189,7 +210,7 @@ def carregar_mapa(caminho_arquivo):
         return f.read()
 
 if __name__ == "__main__":
-    arquivos = ["lab4.txt"]  # coloque seus labirintos aqui
+    arquivos = ["lab3.txt"]  # coloque seus labirintos aqui
     for arq in arquivos:
         if os.path.exists(arq):
             mapa = carregar_mapa(arq)
