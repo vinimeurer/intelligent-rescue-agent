@@ -61,22 +61,6 @@ class Robo:
         self.log_file = log_file
         self.log_comando("LIGAR")
 
-    # def sensores(self):
-    #     frente_dir = DIRS[self.orientacao]
-    #     esquerda_dir = DIRS[(self.orientacao - 1) % 4]
-    #     direita_dir = DIRS[(self.orientacao + 1) % 4]
-    #     sensores = []
-    #     for dx, dy in [frente_dir, esquerda_dir, direita_dir]:
-    #         nx, ny = self.pos[0] + dx, self.pos[1] + dy
-    #         cel = self.lab.get_celula((nx, ny))
-    #         if cel == 'X':
-    #             sensores.append("PAREDE")
-    #         elif cel == '@':
-    #             sensores.append("HUMANO")
-    #         else:
-    #             sensores.append("VAZIO")
-    #     return sensores
-
     def sensores(self):
         frente_dir = DIRS[self.orientacao]
         esquerda_dir = DIRS[(self.orientacao - 1) % 4]
@@ -96,14 +80,34 @@ class Robo:
                 sensores.append("VAZIO")
         return sensores
 
-
-
     def log_comando(self, cmd):
         sensores = self.sensores()
         carga = "COM HUMANO" if self.humano_coletado else "SEM CARGA"
         self.log.append([cmd]+sensores+[carga])
 
     # --- NOVO: método reutilizável ---
+
+
+    # def mover_para(self, nova_pos, nova_orientacao):
+    #     # --- Alarme 1: colisão com parede ---
+    #     if self.lab.get_celula(nova_pos) == 'X':
+    #         raise Exception("⚠️ ALARME: Tentativa de colisão com parede!")
+
+    #     # --- Alarme 2: atropelamento de humano ---
+    #     if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
+    #         raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
+
+    #     # Giro de orientação
+    #     giros = (nova_orientacao - self.orientacao) % 4
+    #     for _ in range(giros):
+    #         self.log_comando("G")
+    #     self.orientacao = nova_orientacao
+
+    #     # Movimento
+    #     self.pos = nova_pos
+    #     self.lab.print(self.pos, humano_presente=not self.humano_coletado)
+    #     self.log_comando("A")
+
     def mover_para(self, nova_pos, nova_orientacao):
         # --- Alarme 1: colisão com parede ---
         if self.lab.get_celula(nova_pos) == 'X':
@@ -113,16 +117,24 @@ class Robo:
         if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
             raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
 
-        # Giro de orientação
+        # Giro: atualiza orientação antes de logar para que sensores reflitam o novo rumo
         giros = (nova_orientacao - self.orientacao) % 4
         for _ in range(giros):
+            self.orientacao = (self.orientacao + 1) % 4
             self.log_comando("G")
-        self.orientacao = nova_orientacao
+
+        # Se a próxima célula é o humano, loga "A" antes de mover (sensores verão HUMANO)
+        proxima_celula = self.lab.get_celula(nova_pos)
+        if proxima_celula == '@' and not self.humano_coletado:
+            self.log_comando("A")
 
         # Movimento
         self.pos = nova_pos
         self.lab.print(self.pos, humano_presente=not self.humano_coletado)
-        self.log_comando("A")
+
+        # Log padrão do "A" quando não foi logado antes
+        if not (proxima_celula == '@' and not self.humano_coletado):
+            self.log_comando("A")
 
     def explorar(self):
         visitados = set()
@@ -210,7 +222,7 @@ def carregar_mapa(caminho_arquivo):
         return f.read()
 
 if __name__ == "__main__":
-    arquivos = ["lab3.txt"]  # coloque seus labirintos aqui
+    arquivos = ["lab1.txt"]  # coloque seus labirintos aqui
     for arq in arquivos:
         if os.path.exists(arq):
             mapa = carregar_mapa(arq)
