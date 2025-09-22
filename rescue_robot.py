@@ -175,18 +175,43 @@ class Robo:
     def retornar(self):
         caminho_volta = list(reversed(self.caminho_ate_humano[:-1]))
         for prox in caminho_volta:
+            # se o próximo passo é a entrada, parar antes de entrar
+            if prox == self.lab.entrada:
+                break
             dx = prox[0] - self.pos[0]
             dy = prox[1] - self.pos[1]
             nd = DIRS.index((dx, dy))
             self.mover_para(prox, nd)
+
+        # agora o robô deve estar adjacente à entrada; girar para encará-la
+        ex, ey = self.lab.entrada
+        rx, ry = self.pos
+        dx = ex - rx
+        dy = ey - ry
+        if (dx, dy) not in DIRS:
+            # caso o caminho calculado tenha colocado o robô exatamente na entrada
+            # ou em posição inválida para ejeção, sinalizar erro
+            raise Exception("⚠️ ALARME: Não está em posição válida para ejeção (não adjacente à entrada)!")
+        nd_entrada = DIRS.index((dx, dy))
+        # girar sem mover para ficar de frente à entrada
+        self._girar_para(nd_entrada)
+
         self.ejetar()
 
     def ejetar(self):
         if not self.humano_coletado:
             raise Exception("⚠️ ALARME: Tentativa de ejeção sem humano!")
-        if self.pos == self.lab.entrada:
-            self.humano_coletado = False
-            self.log_comando("E")
+
+        # verificar que o robô está de frente para a entrada (célula à frente é a entrada)
+        frente = (self.pos[0] + DIRS[self.orientacao][0],
+                  self.pos[1] + DIRS[self.orientacao][1])
+        if frente != self.lab.entrada:
+            raise Exception("⚠️ ALARME: Tentativa de ejeção somente é permitida quando o robô estiver de frente para a saída!")
+
+        # colocar humano na célula da entrada antes de logar para que sensores mostrem HUMANO na frente
+        self.lab.set_celula(self.lab.entrada, '@')
+        self.humano_coletado = False
+        self.log_comando("E")
 
     def salvar_log(self):
         with open(self.log_file,"w",newline="") as f:
