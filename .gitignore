@@ -81,6 +81,8 @@ Desktop.ini
 
 # Logs
 *.log
+logs/
+log/
 
 # Other
 .idea/
