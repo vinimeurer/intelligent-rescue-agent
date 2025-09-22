@@ -73,7 +73,7 @@ class Robo:
 
             if cel == 'X':
                 sensores.append("PAREDE")
-            elif cel == '@' and i == 0:  
+            elif cel == '@' and i == 0:
                 # só mostrar HUMANO se estiver exatamente à frente
                 sensores.append("HUMANO")
             else:
@@ -85,29 +85,6 @@ class Robo:
         carga = "COM HUMANO" if self.humano_coletado else "SEM CARGA"
         self.log.append([cmd]+sensores+[carga])
 
-    # --- NOVO: método reutilizável ---
-
-
-    # def mover_para(self, nova_pos, nova_orientacao):
-    #     # --- Alarme 1: colisão com parede ---
-    #     if self.lab.get_celula(nova_pos) == 'X':
-    #         raise Exception("⚠️ ALARME: Tentativa de colisão com parede!")
-
-    #     # --- Alarme 2: atropelamento de humano ---
-    #     if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
-    #         raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
-
-    #     # Giro de orientação
-    #     giros = (nova_orientacao - self.orientacao) % 4
-    #     for _ in range(giros):
-    #         self.log_comando("G")
-    #     self.orientacao = nova_orientacao
-
-    #     # Movimento
-    #     self.pos = nova_pos
-    #     self.lab.print(self.pos, humano_presente=not self.humano_coletado)
-    #     self.log_comando("A")
-
     def mover_para(self, nova_pos, nova_orientacao):
         # --- Alarme 1: colisão com parede ---
         if self.lab.get_celula(nova_pos) == 'X':
@@ -117,24 +94,17 @@ class Robo:
         if self.lab.get_celula(nova_pos) == '@' and self.humano_coletado:
             raise Exception("⚠️ ALARME: Tentativa de atropelamento de humano!")
 
-        # Giro: atualiza orientação antes de logar para que sensores reflitam o novo rumo
+        # Giro de orientação (registra G para cada giro à direita)
         giros = (nova_orientacao - self.orientacao) % 4
         for _ in range(giros):
+            # atualizar orientacao antes de logar para que sensores reflitam o novo rumo
             self.orientacao = (self.orientacao + 1) % 4
             self.log_comando("G")
-
-        # Se a próxima célula é o humano, loga "A" antes de mover (sensores verão HUMANO)
-        proxima_celula = self.lab.get_celula(nova_pos)
-        if proxima_celula == '@' and not self.humano_coletado:
-            self.log_comando("A")
 
         # Movimento
         self.pos = nova_pos
         self.lab.print(self.pos, humano_presente=not self.humano_coletado)
-
-        # Log padrão do "A" quando não foi logado antes
-        if not (proxima_celula == '@' and not self.humano_coletado):
-            self.log_comando("A")
+        self.log_comando("A")
 
     def explorar(self):
         visitados = set()
@@ -145,18 +115,28 @@ class Robo:
                 return False
             visitados.add(pos)
 
+            # se estiver sobre o humano, pegar (caso raro)
             if self.lab.get_celula(pos) == '@':
                 self.pegar_humano()
                 return True
 
             for nd, (dx, dy) in enumerate(DIRS):
                 nx, ny = pos[0] + dx, pos[1] + dy
-                if self.lab.get_celula((nx, ny)) in ['.', '@'] and (nx, ny) not in visitados:
+                cel_vizinha = self.lab.get_celula((nx, ny))
+
+                # Se houver humano na célula à frente: girar e pegar sem entrar
+                if cel_vizinha == '@' and (nx, ny) not in visitados:
+                    self._girar_para(nd)
+                    self.pegar_humano_frente((nx, ny))
+                    return True
+
+                # mover normalmente por células livres ('.' ou 'E')
+                if cel_vizinha in ['.', 'E'] and (nx, ny) not in visitados:
                     caminho.append((nx, ny))
                     self.mover_para((nx, ny), nd)
                     if dfs((nx, ny)):
                         return True
-                    # --- BACKTRACK REAL ---
+                    # backtrack: voltar para pos
                     self.mover_para(pos, (nd + 2) % 4)
                     caminho.pop()
 
@@ -165,21 +145,32 @@ class Robo:
         dfs(self.pos)
         self.caminho_ate_humano = [self.lab.entrada] + caminho
 
+    def _girar_para(self, nova_orientacao):
+        # girar passo a passo: atualizar orientacao primeiro e então logar "G"
+        giros = (nova_orientacao - self.orientacao) % 4
+        for _ in range(giros):
+            self.orientacao = (self.orientacao + 1) % 4
+            self.log_comando("G")
+
+    def pegar_humano_frente(self, pos_humano):
+        # pos_humano é a célula da frente que deve conter '@'
+        if self.lab.get_celula(pos_humano) != '@':
+            raise Exception("⚠️ ALARME: Tentativa de coleta frontal sem humano!")
+        # marcar humano como coletado (não entra na célula)
+        self.humano_coletado = True
+        self.lab.set_celula(pos_humano, '.')
+        # registrar P e atualizar visual (humano não é mais mostrado)
+        self.log_comando("P")
+        self.lab.print(self.pos, humano_presente=False)
+
     def pegar_humano(self):
+        # caso o robô esteja sobre a célula do humano (entra na célula)
         if self.lab.get_celula(self.pos) != '@':
-            raise Exception("⚠️ ALARME: Tentativa de coleta sem humano!")
+            return
         self.humano_coletado = True
         self.lab.set_celula(self.pos, '.')
         self.log_comando("P")
         self.lab.print(self.pos, humano_presente=False)
-
-        livres = 0
-        for dx, dy in DIRS:
-            cel = self.lab.get_celula((self.pos[0]+dx, self.pos[1]+dy))
-            if cel in ['.', 'E']:
-                livres += 1
-        if livres == 0:
-            raise Exception("⚠️ ALARME: Beco sem saída após coleta de humano!")
 
     def retornar(self):
         caminho_volta = list(reversed(self.caminho_ate_humano[:-1]))
@@ -222,7 +213,7 @@ def carregar_mapa(caminho_arquivo):
         return f.read()
 
 if __name__ == "__main__":
-    arquivos = ["lab1.txt"]  # coloque seus labirintos aqui
+    arquivos = ["lab3.txt"]  # coloque seus labirintos aqui
     for arq in arquivos:
         if os.path.exists(arq):
             mapa = carregar_mapa(arq)
