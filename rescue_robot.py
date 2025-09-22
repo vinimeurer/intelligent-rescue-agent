@@ -73,8 +73,7 @@ class Robo:
 
             if cel == 'X':
                 sensores.append("PAREDE")
-            elif cel == '@' and i == 0:
-                # só mostrar HUMANO se estiver exatamente à frente
+            elif cel == '@':
                 sensores.append("HUMANO")
             else:
                 sensores.append("VAZIO")
@@ -115,6 +114,24 @@ class Robo:
                 return False
             visitados.add(pos)
 
+            # --- novo: prioridade para HUMANO detectado pelos sensores ---
+            sensores = self.sensores()
+            if "HUMANO" in sensores:
+                idx = sensores.index("HUMANO")  # 0=frente,1=esquerda,2=direita
+                if idx == 0:
+                    nd = self.orientacao
+                elif idx == 1:
+                    nd = (self.orientacao - 1) % 4
+                else:
+                    nd = (self.orientacao + 1) % 4
+                dx, dy = DIRS[nd]
+                nx, ny = pos[0] + dx, pos[1] + dy
+                if self.lab.get_celula((nx, ny)) == '@':
+                    self._girar_para(nd)
+                    self.pegar_humano_frente((nx, ny))
+                    return True
+            # --- fim da prioridade ---
+
             # se estiver sobre o humano, pegar (caso raro)
             if self.lab.get_celula(pos) == '@':
                 self.pegar_humano()
@@ -144,7 +161,6 @@ class Robo:
 
         dfs(self.pos)
         self.caminho_ate_humano = [self.lab.entrada] + caminho
-
     def _girar_para(self, nova_orientacao):
         # girar passo a passo: atualizar orientacao primeiro e então logar "G"
         giros = (nova_orientacao - self.orientacao) % 4
@@ -238,7 +254,7 @@ def carregar_mapa(caminho_arquivo):
         return f.read()
 
 if __name__ == "__main__":
-    arquivos = ["lab3.txt"]  # coloque seus labirintos aqui
+    arquivos = ["lab4.txt"]  # coloque seus labirintos aqui
     for arq in arquivos:
         if os.path.exists(arq):
             mapa = carregar_mapa(arq)
