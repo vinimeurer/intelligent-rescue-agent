@@ -213,6 +213,37 @@ class Robo:
             self.orientacao = (self.orientacao + 1) % 4
             self.log_comando("G")
 
+    def _tem_caminho_para_entrada(self, start_pos):
+        """
+        Verifica se há um caminho da posição start_pos até a entrada do labirinto.
+        
+        Args:
+            - start_pos: Tupla (x, y) representando a posição inicial.
+
+        Returns:
+            - True se há um caminho, False caso contrário.
+
+        Raises:
+            - None
+        """
+
+        from collections import deque
+        q = deque([start_pos])
+        visitados = {start_pos}
+        while q:
+            x, y = q.popleft()
+            if (x, y) == self.lab.entrada:
+                return True
+            for dx, dy in DIRS:
+                nx, ny = x + dx, y + dy
+                if (nx, ny) in visitados:
+                    continue
+                cel = self.lab.get_celula((nx, ny))
+                if cel in ('.', 'E', '@'):
+                    visitados.add((nx, ny))
+                    q.append((nx, ny))
+        return False
+
     def pegar_humano_frente(self, pos_humano):
         """
         Caso o robô esteja de frente para a célula do humano (não entra na célula).
@@ -250,7 +281,11 @@ class Robo:
         """
 
         if self.lab.get_celula(self.pos) != '@':
-            return
+            raise Exception("⚠️ ALARME: tentativa de coleta sem humano")
+
+        if not self._tem_caminho_para_entrada(self.pos):
+            raise Exception("⚠️ ALARME: Beco sem saída")
+
         self.humano_coletado = True
         self.lab.set_celula(self.pos, '.')
         self.log_comando("P")
