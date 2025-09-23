@@ -1,5 +1,6 @@
 import pytest
-from rescue_robot import Labirinto, Robo, DIRS
+from labirinto import Labirinto
+from robo import Robo
 
 # Função auxiliar para criar rapidamente o robo
 def criar_robo(mapa_str):
